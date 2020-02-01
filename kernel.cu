@@ -147,12 +147,12 @@ int main(int argc, char * argv[]) {
 
 	gpuErrchk(cudaPeekAtLastError());
 	gpuErrchk(cudaDeviceSynchronize());
-	//gpuErrchk(cudaMemcpy2D(hostPtr2, Ncols * sizeof(float), devPtr, pitch, Ncols * sizeof(float), Nrows, cudaMemcpyDeviceToHost));
 
 	cudaMemcpy(hostPtrX, d_X, size, cudaMemcpyDeviceToHost);
 
 	impresion(hostPtrAB);
 	imprime_resultado(hostPtrX);
+	cudaDeviceReset();
 
 	/***********************/
 	/***liberando memoria***/
