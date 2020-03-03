@@ -1,37 +1,64 @@
-﻿/*
-Creado por David Mendieta Morales				 
-				 Escuela Superior de Ingenieria Mecanica y Electrica
-				 Instituto Politecnico Nacional - Unidad Culhuacan
-Ciudad de Mexico 2020
-
-OPEN SOURCE CODE - Libre modificación y distribución
-*/
+﻿#define _CRT_SECURE_NO_WARNINGS
 #include<stdio.h>
-#include<cuda.h>
-#include<cuda_runtime.h>
-#include<device_launch_parameters.h>
 #include<math.h>
+#include<cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
+#include<device_launch_parameters.h>
 #include "CUDA_Error_handling.cuh"
-#define BLOCKSIZE_x 16
-#define BLOCKSIZE_y 16
-#define Nrows 3
-#define Ncols 4
+#include "common.h"
+#define Nrows 500
+#define Ncols 501
+
+void enter() {
+	char enter = 0;
+	while (enter != '\r' && enter != '\n')
+		enter = getchar();
+}
 
 void impresion1(float Z[Nrows][Ncols]) {									//imprime la matriz
 	for (int i = 0; i < Nrows; i++) {
 		for (int j = 0; j < Ncols; j++) {
-			printf("%f ", Z[i][j]);
+			printf("%8.4f ", Z[i][j]);
 		}
 		printf("\n\n");
 	}
 }
 
-void impresion(float Y[Nrows*Ncols]) {									//imprime la matriz
-	for (int i = 0; i < Nrows * Ncols; i++) {
-		printf("%f ", Y[i]);
+void conversion(float Y[Nrows * Ncols], float Z[Nrows][Ncols]) {
+	for (int i = 0; i < Nrows; i++) {
+		for (int j = 0; j < Ncols; j++) {
+				Z[i][j] = Y[i *Ncols + j];
+		}
 	}
 }
 
+void impresion(float Y[Nrows*Ncols]) {									//imprime la matriz
+	for (int i = 0; i < Nrows * Ncols; i++) {
+		printf("%8.4f ", Y[i]);
+		if (i % Ncols == 0) {
+			printf("\n");
+		}
+	}
+}
+
+/**************************/
+/***Lectura de la matriz***/
+/**************************/
+void matrix_read(float* L, int dimension) {
+	FILE* fp;
+	int row, col;
+	fp = fopen("matriz500.txt", "r");										//open output file
+	if (fp == NULL)															//open failed
+		return;
+	for (row = 0; row < dimension; row++) {									//!feof(fp)
+		for (col = 0; col < dimension; col++)
+			if (fscanf(fp, "%f,", &L[row * dimension + col]) == EOF) break; //read data
+
+		if (feof(fp)) break;												//if the file is over
+	}
+	fclose(fp);																//close file
+}
 
 void imprime_resultado(float X[Nrows]) {
 	for (int i = 0; i < Nrows; i++) {
@@ -39,10 +66,23 @@ void imprime_resultado(float X[Nrows]) {
 	}
 }
 
+void imprime_resultadosvect(float X[Nrows]) {
+	for (int i = 0; i < Nrows; i++) {
+		printf("%f ", X[i]);
+		printf("\n");
+	}
+}
+
+void imprime_resultadosvect1(float X[Nrows]) {
+	for (int i = 0; i < Nrows; i++) {
+		printf("elemento: %d | %-16.4f\n", i, X[i]);
+	}
+}
+
 /**************/
 /***Modelo 1***/
 /**************/
-__global__ void gaussJordan(float* AB, size_t pitch) {
+__global__ void gaussJordan1(float* AB, size_t pitch) {
 	int r = blockDim.y * blockIdx.y + threadIdx.y;										//for (int f = 0; f <= fil - 1; f += 1)	equivalencia en for
 	int c = blockDim.x * blockIdx.x + threadIdx.x;										//for (int c = 0; c <= col - 1; c += 1)	if (id >= n - 1 - poscol)
 	if ((r < Nrows) && (c < Ncols)) {
@@ -108,21 +148,17 @@ __global__ void eliminacionAdelante(float* AB, int n, int poscol) {
 		return;
 	}
 	int pospivot = (n + 2) * poscol	;			//posicion del pivoten en el vector
-	printf("Posoivot %d\n\n", pospivot);
 	int posfinfila = (n + 1) * (poscol + 1);	//posicion final de la fila en el vector
 	float piv = AB[pospivot];					
-	printf("piv %f\n\n", piv);					
 	for (int j = pospivot; j < posfinfila; j++) {
 		AB[j] = AB[j] / piv;
-		printf("pospivote = %f\n\n", AB[j]);
+		//printf("pospivote = %f\n\n", AB[j]);
 	}
 	int posfactor = pospivot + (n + 1) * (id + 1);//posiciones bajo el pivote
 		float factor = AB[posfactor];
-		printf("factor %f\n\n", factor);
 	for (int j = pospivot; j < posfinfila; j++) {
 		int posactualelim = j + (n + 1) * (id + 1);
 		AB[posactualelim] = -1 * factor * AB[j] + AB[posactualelim];
-		printf("posactualelim %f\n\n", AB[posactualelim]);
 	}
 }
 __global__ void eliminacionAtras(float* AB, int n, int poscol) {
@@ -130,25 +166,45 @@ __global__ void eliminacionAtras(float* AB, int n, int poscol) {
 	if (id >= n - 1 - poscol) {
 		return;
 	}
-	printf("matrix2\n\n");
 	int pospivot = (n + 2) * (n - 1 - poscol);
-	printf("Posoivot %d\n\n", pospivot);
 	if (poscol == 0) {
 		float pivot = AB[pospivot];
 		AB[pospivot] = AB[pospivot] / pivot;
 		AB[pospivot + 1] = AB[pospivot + 1] / pivot;
-		printf("posicion pivote = %f\n\n", AB[pospivot]);
+		//printf("posicion pivote = %f\n\n", AB[pospivot]);
 	}
 	float factor = AB[pospivot - (n + 1) * (id + 1)];
-	printf("factor %f\n\n", factor);
 	int posactualelim1 = pospivot - (n + 1) * (id + 1);
 	int posactualelim2 = pospivot - (n + 1) * (id + 1) + 1 + poscol;
 	AB[posactualelim1] = -1 * factor * AB[pospivot] + AB[posactualelim1];
-	printf("posactualelim1 %f\n\n", AB[posactualelim1]);
 	AB[posactualelim2] = -1 * factor * AB[pospivot + 1 + poscol] + AB[posactualelim2];
-	printf("posactualelim2 %f\n\n", AB[posactualelim2]);
-
 }
+
+/**************/
+/***Modelo 3***/
+/**************/
+__global__ void GaussJordan(float* AB, int n, int poscol) {
+	int idx = blockDim.x * blockIdx.x + threadIdx.x;	
+	if (idx >= n) {
+		return;
+	}
+	int pospivot = (n + 2) * poscol;
+	int posfinfila = (n + 1) * (poscol + 1);
+	float piv = AB[pospivot];
+	for (int j = pospivot; j < posfinfila; j++) {
+		AB[j] = AB[j] / piv;
+	}
+	int posfactor = pospivot % (n + 1) + idx * (n + 1);
+	if (posfactor != pospivot) {
+		float factor = AB[posfactor];
+		for (int j = pospivot; j < posfinfila; j++) {
+			int posactualelim = j % (n + 1) + idx * (n + 1);
+			AB[posactualelim] = -
+				1 * factor * AB[j] + AB[posactualelim];
+		}
+	}
+}
+
 /****************/
 /***Resultados***/
 /****************/
@@ -175,106 +231,131 @@ int iDivUp(int hostPtr, int b) { return ((hostPtr % b) != 0) ? (hostPtr / b + 1)
 /* MAIN */
 /********/
 int main(int argc, char * argv[]) {
-	//float hostPtrAB[Nrows][Ncols], hostPtrZ[Nrows][Ncols], hostPtrX[Nrows], tempval=0;
-	float hostPtrZ[Ncols * Nrows], hostPtrX[Ncols];
-	size_t pitch;	
-	int size1=Nrows * sizeof(float);
-	int size = Nrows * Ncols * sizeof(float);
-	int n = Nrows;
+	float hostPtrAB2[Nrows][Ncols], hostPtrZ2[Nrows][Ncols], hostPtrZ[Ncols * Nrows], hostPtrX[Nrows], time, hostPtrXcpu[Nrows];
+	float* hostPtrL = new float[Nrows * Ncols], *hostPtrcpu = new float[Nrows * Ncols];	//vector de lectura
+	int n = Nrows;														//filas
+	int m = Ncols;														//columnas
+	int tamaño = Nrows * Ncols;											//tanaño de la matriz
+	int block_size = 1024;												//hilos por bloque
+	int size1=Nrows * sizeof(float);									//tamaño del vector de resultados
+	int size = Nrows * Ncols * sizeof(float);							//tamaño de la matriz en bits
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
 
-	float hostPtrAB[Ncols * Nrows] = { 2,-1, 1, 2,
+	//Generador(tamaño, hostPtrL);
+	//printf("tamaño: %d", tamaño);
+	printf("leyendo matriz");
+	matrix_read(hostPtrL, m);											//hostPtr matriz leida de un archivo .txt
+	printf("matriz origen\n\n");
+	//conversion(hostPtrL, hostPtrAB2);
+	//impresion1(hostPtrAB2);
+	enter();
+	float hostPtrAB[Ncols * Nrows] = { 2,-1, 1, 2,						//Matriz de prueba predefinida 4x3
 									   3, 1,-2, 9,
-									  -1, 2, 5,-5 };			//{2, 1, 0, 6, 5, -2}; //
-	/*for (int i = 0; i < Nrows; i++) {
-		for (int j = 0; j < Ncols; j++) {
-			fprintf(stdout, "ingrese el %d coeficiente de la %d ecuacion: ", j, i);
-			scanf_s("%f", &tempval);
-			hostPtrAB[i][j] = tempval;
-		}
-	}
-	impresion(hostPtrAB);*/									//check
+									  -1, 2, 5,-5 };	
+
 	/***********************************************/
 	/***Carga de matriz a memoria del dispositivo***/
 	/***********************************************/
-	//Matriz AB
+	//Matriz AB		Matriz original
 	float* d_AB;
-	//gpuErrchk(cudaMallocPitch(&d_AB, &pitch, Ncols * sizeof(float), Nrows));
-	//cudaMemcpy2D(d_AB, pitch, hostPtrAB, Ncols * sizeof(float), Ncols * sizeof(float), Nrows, cudaMemcpyHostToDevice);
 	cudaMalloc((void**)&d_AB, size);
-	cudaMemcpy(d_AB, hostPtrAB, size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_AB, hostPtrL, size, cudaMemcpyHostToDevice);
 
 
-	//Matriz Z
-	float* d_Z;
+	//Matriz Z		Matriz unitaria
+	float* d_Z;					
 	cudaMalloc((void**)&d_Z, size);
 	cudaMemcpy(d_Z, hostPtrZ, size, cudaMemcpyHostToDevice);
 
 
-	//Matriz X
+	//Matriz X		vector de resultados
 	float *d_X;
 	cudaMalloc((void**)&d_X, size1);
 
-	/****************************/
-	/***Lanzamiento del kernel Modelo1***/
-	/****************************/
-	//dim3 gridSize(iDivUp(Ncols, BLOCKSIZE_x), iDivUp(Nrows, BLOCKSIZE_y));
-	//dim3 blockSize(BLOCKSIZE_y, BLOCKSIZE_x);
-	//gaussJordan << <gridSize, blockSize >> > (d_AB, pitch);
-	//cudaDeviceSynchronize();
-	//resultado << <gridSize, blockSize >> > (d_AB, d_X, pitch);
-	//gpuErrchk(cudaPeekAtLastError());
-	//gpuErrchk(cudaDeviceSynchronize());
-
-	//cudaMemcpy2D(hostPtrZ, Ncols * sizeof(float), d_AB, pitch, Ncols * sizeof(float), Nrows, cudaMemcpyDeviceToHost);
-	//cudaMemcpy(hostPtrX, d_X, size1, cudaMemcpyDeviceToHost);
-
-	//printf("matriz original\n\n");
-	//impresion(hostPtrAB);
-	//printf("Matriz clonada\n\n");
-	//impresion(hostPtrZ);
-	//printf("resultados\n\n");
-	//imprime_resultado(hostPtrX);
-	//cudaDeviceReset();
+	cudaEventCreate(&start);
+	cudaEventRecord(start, 0);
 
 	/************************************/
 	/***Lanzamiento del kernel Modelo1***/
 	/************************************/
-	int blocksize = 1024;
-	for (int i = 0; i < n - 1; i++) {
-		int numBlocks = ceil((n - 1 - i) / ((float)blocksize));
-		eliminacionAdelante << <numBlocks, blocksize >> >(d_AB, n, i);
-		//gpuErrchk(cudaDeviceSynchronize());
+	//int blocksize = 1024;
+	//for (int i = 0; i < n - 1; i++) {
+	//	int numBlocks = ceil((n - 1 - i) / ((float)blocksize));
+	//	eliminacionAdelante << <numBlocks, blocksize >> >(d_AB, n, i);
+	//	//gpuErrchk(cudaDeviceSynchronize());
+	//}
+	//for (int i = 0; i < n - 1; i++) {
+	//	int numBlocks = ceil((n - 1 - i) / ((float)blocksize));
+	//	eliminacionAtras << <numBlocks, blocksize >> > (d_AB, n, i);
+	//	//gpuErrchk(cudaDeviceSynchronize());
+	//}
+	//int nbloques = ceil(n / ((float)blocksize));
+	//resultado << <nbloques, blocksize >> > (d_AB, n, d_X);
+	/************************************/
+	/***Lanzamiento del kernel Modelo3***/
+	/************************************/
+	//int	tamaño_de_bloque = ((tamaño / 1024) + 1);
+	//printf("tamaño: %d", tamaño_de_bloque);
+	dim3 block (32,32);													//hilos porv bloque		1024
+	dim3 grid ((tamaño / block.x)+1, (tamaño / block.y) + 1);			//numero de bloques		suponiendo500 => (250 500) + 1 = 245 => bloques en total	40*1024 =40960 (32*32=1024) 245
+	for (int i = 0; i < n; i++) {										//											1024
+		GaussJordan << <grid, block >> > (d_AB, n, i);
 	}
-	for (int i = 0; i < n - 1; i++) {
-		int numBlocks = ceil((n - 1 - i) / ((float)blocksize));
-		eliminacionAtras << <numBlocks, blocksize >> > (d_AB, n, i);
-		//gpuErrchk(cudaDeviceSynchronize());
-	}
-	int nbloques = ceil(n / ((float)blocksize));
-	resultado << <nbloques, blocksize >> > (d_AB, n, d_X);
+	resultado << <grid, block >> > (d_AB, n, d_X);	
+
 	gpuErrchk(cudaDeviceSynchronize());
+	//cudaEventRecord(stop, 0);
+	//cudaEventSynchronize(stop);
+	//cudaEventElapsedTime(&time, start, stop);
+	//cudaEventDestroy(start);
+	//cudaEventDestroy(stop);
+	cudaEventCreate(&stop);
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&time, start, stop);
 
 	cudaMemcpy(hostPtrX, d_X, size1, cudaMemcpyDeviceToHost);
 	cudaMemcpy(hostPtrZ, d_AB, size, cudaMemcpyDeviceToHost);
 	cudaDeviceReset();
 
-	printf("matriz original\n\n");
-	impresion(hostPtrAB);
-	printf("\n\n");
-	
-	printf("matriz clon\n\n");
-	impresion(hostPtrZ);
-	printf("\n\n");
-	
-	printf("resultados\n\n");
-	imprime_resultado(hostPtrX);
+	/***********************************/
+	/***Algoritmo gauss jordan en cpu***/
+	/***********************************/
+	//GaussJordan_cpu(hostPtrL, n, m, hostPtrXcpu);
+
+	/*************************/
+	/***Tiempo de respuesta***/
+	/*************************/
+	printf("\n\nCuda Time: %f ms\n", time);
 	printf("\n\n");
 
+	printf("             CPU | GPU             \n");
+	printf("-----------------+-----------------\n");
+	imprime_resultadosvect1(hostPtrX);
+	printf("Pulse enter para ver resultados completos...\n");
+	//printf("numero de bloques: %8.4f", numBlocks);
+	enter();
+
+	/*****************************/
+	/***impresion de resultados***/
+	/*****************************/
+	printf("matriz original\n\n");
+	conversion(hostPtrL, hostPtrAB2);
+	impresion1(hostPtrAB2);
+
+	printf("matriz clon\n\n");
+	conversion(hostPtrZ, hostPtrZ2);
+	impresion1(hostPtrZ2);
 
 	/***********************/
 	/***liberando memoria***/
 	/***********************/
 	cudaFree(d_AB);
 	cudaFree(d_X);
+	cudaFree(d_Z);
+
 	return 0;
 }
+

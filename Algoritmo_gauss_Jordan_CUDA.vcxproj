@@ -77,10 +77,21 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="common.cu" />
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="common.h" />
     <ClInclude Include="CUDA_Error_handling.cuh" />
+    <ClInclude Include="Funciones_GPU.cuh" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="6x6_1.txt" />
+    <Text Include="Matriz100.txt" />
+    <Text Include="Matriz1000.txt" />
+    <Text Include="Matriz200.txt" />
+    <Text Include="Matriz500.txt" />
+    <Text Include="Matriz6.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
