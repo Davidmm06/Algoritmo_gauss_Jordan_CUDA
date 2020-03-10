@@ -1,4 +1,5 @@
 #include<stdlib.h>
+#include<stdio.h>
 #include<time.h>
 #include "common.h"
 /***/
@@ -10,7 +11,7 @@
 /**************************/
 /***Gaauss Jordan en cpu***/
 /**************************/
-float GaussJordan_cpu(float* AB, int n, int m, float* X) {
+void GaussJordan_cpu(float* AB, int n, int m, float* X, float time2) {
 	cudaEvent_t timer1, timer2;
 	cudaEventCreate(&timer1);
 	cudaEventCreate(&timer2);
@@ -40,10 +41,7 @@ float GaussJordan_cpu(float* AB, int n, int m, float* X) {
 	cudaEventRecord(timer2, 0);
 	cudaEventSynchronize(timer1);
 	cudaEventSynchronize(timer2);
-	float elapsed;
-	cudaEventElapsedTime(&elapsed, timer1, timer2);
-
-	return elapsed;
+	cudaEventElapsedTime(&time2, timer1, timer2);
 }
 void Generador(int tamaño, float* hostPtrL) {
 	time_t t;
@@ -51,4 +49,9 @@ void Generador(int tamaño, float* hostPtrL) {
 	for (int i = 0; i < tamaño; i++) {
 		hostPtrL[i] = (int)(rand() & 0xFF);
 	}
+}
+void enter() {
+	char enter = 0;
+	while (enter != '\r' && enter != '\n')
+		enter = getchar();
 }

@@ -7,8 +7,8 @@
 #include<device_launch_parameters.h>
 #include "CUDA_Error_handling.cuh"
 #include "common.h"
-#define Nrows 500
-#define Ncols 501
+#define Nrows 3
+#define Ncols 4
 
 void enter() {
 	char enter = 0;
@@ -216,7 +216,6 @@ __global__ void resultado1(float* AB, float* X, size_t pitch) {
 		X[r] = finfila;
 	}
 }
-
 __global__ void resultado(float* AB, int n, float* X) {
 	int id = blockDim.x * blockIdx.x + threadIdx.x;
 	if (id < n) {
@@ -231,7 +230,7 @@ int iDivUp(int hostPtr, int b) { return ((hostPtr % b) != 0) ? (hostPtr / b + 1)
 /* MAIN */
 /********/
 int main(int argc, char * argv[]) {
-	float hostPtrAB2[Nrows][Ncols], hostPtrZ2[Nrows][Ncols], hostPtrZ[Ncols * Nrows], hostPtrX[Nrows], time, hostPtrXcpu[Nrows];
+	float hostPtrAB2[Nrows][Ncols], hostPtrZ2[Nrows][Ncols], hostPtrZ[Ncols * Nrows], hostPtrX[Nrows], time, time2, hostPtrXcpu[Nrows];
 	float* hostPtrL = new float[Nrows * Ncols], *hostPtrcpu = new float[Nrows * Ncols];	//vector de lectura
 	int n = Nrows;														//filas
 	int m = Ncols;														//columnas
@@ -323,7 +322,7 @@ int main(int argc, char * argv[]) {
 	/***********************************/
 	/***Algoritmo gauss jordan en cpu***/
 	/***********************************/
-	//GaussJordan_cpu(hostPtrL, n, m, hostPtrXcpu);
+	GaussJordan_cpu(hostPtrL, n, m, hostPtrXcpu, time2);
 
 	/*************************/
 	/***Tiempo de respuesta***/
